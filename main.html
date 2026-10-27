@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="theme-color" content="#eaeae2">
+	<title>Regional Message Board Archive</title>
+	<link rel="stylesheet" href="main.css?v=archive-search">
+	<script src="main.js" defer></script>
+</head>
+<body id="page_rmb_archive">
+	<header id="top" class="archive-header">
+		<div class="archive-heading">
+			<p class="archive-kicker">CORDONE · MESSAGE ARCHIVE</p>
+			<h1>Regional Message Board</h1>
+			<p id="archive-summary" class="archive-summary">Loading backup…</p>
+		</div>
+	</header>
+	<main id="content" class="archive-content">
+		<form id="archive-search" class="archive-search" role="search">
+			<label class="archive-search-terms" for="search-terms">Message words
+				<input id="search-terms" name="q" type="search" placeholder="Search text">
+			</label>
+			<label class="archive-search-author" for="search-author">Author
+				<input id="search-author" name="author" type="search" placeholder="Nation name">
+			</label>
+			<label class="archive-search-sort" for="search-sort">Sort
+				<select id="search-sort" name="sort">
+					<option value="relevant">Most relevant</option>
+					<option value="newest">Newest</option>
+					<option value="oldest">Oldest</option>
+				</select>
+			</label>
+			<div class="archive-search-actions">
+				<button type="submit">Search archive</button>
+				<button id="search-clear" type="button">Clear</button>
+			</div>
+		</form>
+		<div id="archive-status" class="info" role="status">Loading messages…</div>
+		<section id="archive" class="hide" aria-label="Archived messages">
+			<nav id="pagination-top" class="paginate archive-pagination" aria-label="Message pages"></nav>
+			<div id="messages" class="rmbforum" aria-live="polite"></div>
+			<nav id="pagination-bottom" class="paginate archive-pagination" aria-label="Message pages"></nav>
+		</section>
+	</main>
+	<footer class="archive-footer">
+		<a href="#top" class="quietlink">Back to top</a>
+	</footer>
+</body>
+</html>
