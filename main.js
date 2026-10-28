@@ -5,7 +5,7 @@ const ARCHIVE_ICON_URL = "https://www.nationstates.net/images/externallink.gif";
 const messagesContainer = document.querySelector("#messages");
 const archive = document.querySelector("#archive");
 const status = document.querySelector("#archive-status");
-const summary = document.querySelector("#archive-summary");
+const archiveCount = document.querySelector("#archive-count");
 const searchForm = document.querySelector("#archive-search");
 const searchTermsInput = document.querySelector("#search-terms");
 const searchAuthorInput = document.querySelector("#search-author");
@@ -34,6 +34,27 @@ function formatMessage(value) {
 
 	function currentNode() {
 		return stack[stack.length - 1].node;
+	}
+
+	function nextToken() {
+		const match = tokenPattern.exec(source);
+		if (!match || !/^\s*spoiler\s*=/i.test(match[1])) return match;
+		let depth = 1;
+		for (let index = match.index + 1; index < source.length; index += 1) {
+			if (source[index] === "[") depth += 1;
+			else if (source[index] === "]") {
+				depth -= 1;
+				if (depth === 0) {
+					tokenPattern.lastIndex = index + 1;
+					return {
+						0: source.slice(match.index, index + 1),
+						1: source.slice(match.index + 1, index),
+						index: match.index,
+					};
+				}
+			}
+		}
+		return match;
 	}
 
 	function appendText(node, text, preserveWhitespace = false, autoLink = true) {
@@ -152,7 +173,7 @@ function formatMessage(value) {
 		if (name === "spoiler") {
 			const details = document.createElement("details");
 			const summaryNode = document.createElement("summary");
-			summaryNode.textContent = argument || "Spoiler";
+			summaryNode.append(formatMessage(argument || "Spoiler"));
 			const body = document.createElement("div");
 			details.append(summaryNode, body);
 			parent.append(details);
@@ -313,7 +334,7 @@ function formatMessage(value) {
 	}
 
 	let match;
-	while ((match = tokenPattern.exec(source)) !== null) {
+	while ((match = nextToken()) !== null) {
 		const preformatted = stack.some((frame) => frame.name === "pre");
 		const insideLink = stack.some((frame) => frame.name === "url" || frame.name === "nation" || frame.name === "region");
 		appendText(currentNode(), source.slice(cursor, match.index), preformatted, !insideLink);
@@ -366,8 +387,14 @@ function createAnchor(href, label) {
 
 function decodeEntities(value) {
 	const textarea = document.createElement("textarea");
-	textarea.innerHTML = String(value).replace(/</g, "&lt;").replace(/>/g, "&gt;");
-	return textarea.value;
+	let decoded = String(value);
+	let previous;
+	do {
+		previous = decoded;
+		textarea.innerHTML = decoded.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+		decoded = textarea.value;
+	} while (decoded !== previous);
+	return decoded;
 }
 
 function nationStatesTarget(target) {
@@ -480,10 +507,70 @@ function createMessage(post, index, searchTerms = []) {
 	const messageContent = article.querySelector(".archive-message-content");
 	messageContent.append(formatMessage(post.MESSAGE));
 	if (searchTerms.length) highlightSearchTerms(messageContent, searchTerms);
+	const authorDeleted = post.STATUS === "2";
+	if (post.SUPPRESSOR || authorDeleted) {
+		const notice = document.createElement("div");
+		notice.className = "archive-suppressed-row";
+		const moderatorSuppression = post.SUPPRESSOR === "!mod";
+		const suppressor = moderatorSuppression
+			? "a moderator"
+			: entityLink("nation", post.SUPPRESSOR, displayNation(post.SUPPRESSOR));
+		const noticeText = document.createElement("span");
+		noticeText.className = "archive-suppressed-notice";
+		if (authorDeleted) noticeText.textContent = String(post.MESSAGE ?? "");
+		else noticeText.innerHTML = `Post by ${entityLink("nation", post.NATION, displayNation(post.NATION))} suppressed by ${suppressor}.`;
+		notice.append(noticeText);
+		messageContent.id = `archive-message-content-${post["@id"] || index}`;
+		messageContent.hidden = true;
+		if (!moderatorSuppression && !authorDeleted) {
+			const toggle = document.createElement("button");
+			toggle.className = "archive-suppressed-toggle";
+			toggle.type = "button";
+			toggle.textContent = "Show";
+			toggle.setAttribute("aria-expanded", "false");
+			toggle.setAttribute("aria-controls", messageContent.id);
+			notice.append(toggle);
+		}
+		messageContent.before(notice);
+	}
 	return article;
 }
 
 messagesContainer.addEventListener("click", (event) => {
+	const spoilerSummary = event.target.closest(".archive-message-body details > summary");
+	if (spoilerSummary) {
+		event.preventDefault();
+		const details = spoilerSummary.parentElement;
+		const body = spoilerSummary.nextElementSibling;
+		const opening = !spoilerOpenStates.get(details);
+		spoilerOpenStates.set(details, opening);
+		if (opening) {
+			details.open = true;
+			animateFold(body, true);
+		} else {
+			animateFold(body, false).then((finished) => {
+				if (finished && !spoilerOpenStates.get(details)) details.open = false;
+			});
+		}
+		return;
+	}
+	const suppressionToggle = event.target.closest(".archive-suppressed-toggle");
+	if (suppressionToggle) {
+		const content = document.getElementById(suppressionToggle.getAttribute("aria-controls"));
+		if (!content) return;
+		const opening = suppressionToggle.getAttribute("aria-expanded") !== "true";
+		suppressionToggle.setAttribute("aria-expanded", String(opening));
+		suppressionToggle.textContent = opening ? "Hide" : "Show";
+		if (opening) {
+			content.hidden = false;
+			animateFold(content, true);
+		} else {
+			animateFold(content, false).then((finished) => {
+				if (finished && suppressionToggle.getAttribute("aria-expanded") !== "true") content.hidden = true;
+			});
+		}
+		return;
+	}
 	const toggle = event.target.closest(".archive-likers-toggle");
 	if (!toggle) return;
 	const remainingLikers = toggle.nextElementSibling;
@@ -505,7 +592,7 @@ function getCurrentPage(pageCount) {
 
 function pageButtons(currentPage, pageCount) {
 	const pages = new Set([1, pageCount]);
-	for (let page = currentPage - 2; page <= currentPage + 2; page += 1) {
+	for (let page = currentPage - 3; page <= currentPage + 3; page += 1) {
 		if (page > 1 && page < pageCount) pages.add(page);
 	}
 	const ordered = [...pages].sort((a, b) => a - b);
@@ -545,6 +632,81 @@ let activeSearchResults = null;
 let activeSearchOptions = null;
 let activeSearchKey = "";
 let activeSearchPage = 1;
+let activeSearchProgress = null;
+
+let messagePageTurnSequence = 0;
+let messagePageAnimation = null;
+const foldAnimations = new WeakMap();
+const spoilerOpenStates = new WeakMap();
+const expandedFoldFrame = { opacity: 1, clipPath: "inset(0 0 0 0)" };
+const collapsedFoldFrame = { opacity: 0.35, clipPath: "inset(0 50% 100% 50%)" };
+
+function animateFold(element, opening) {
+	if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return Promise.resolve(true);
+
+	foldAnimations.get(element)?.cancel();
+	const animation = element.animate(
+		opening ? [collapsedFoldFrame, expandedFoldFrame] : [expandedFoldFrame, collapsedFoldFrame],
+		{
+			duration: opening ? 480 : 420,
+			easing: opening ? "cubic-bezier(0.2, 0.65, 0.3, 1)" : "cubic-bezier(0.65, 0, 0.35, 1)",
+			fill: "forwards",
+		},
+	);
+	foldAnimations.set(element, animation);
+	return animation.finished.then(() => {
+		if (foldAnimations.get(element) !== animation) return false;
+		animation.cancel();
+		foldAnimations.delete(element);
+		return true;
+	}).catch(() => false);
+}
+
+async function beginMessagePageTurn() {
+	const sequence = ++messagePageTurnSequence;
+	const shouldAnimate = messagesContainer.childElementCount > 0
+		&& !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+	if (!shouldAnimate) return { sequence, shouldAnimate: false };
+
+	messagePageAnimation?.cancel();
+	const animation = messagesContainer.animate([
+		{ opacity: 1, clipPath: "inset(0 0 0 0)" },
+		{ opacity: 0.35, clipPath: "inset(0 50% 100% 50%)" },
+	], {
+		duration: 420,
+		easing: "cubic-bezier(0.65, 0, 0.35, 1)",
+		fill: "forwards",
+	});
+	messagePageAnimation = animation;
+	await animation.finished.catch(() => {});
+	if (sequence !== messagePageTurnSequence) return null;
+	animation.cancel();
+	messagePageAnimation = null;
+	return { sequence, shouldAnimate: true };
+}
+
+function finishMessagePageTurn(turn, renderPage) {
+	if (!turn || turn.sequence !== messagePageTurnSequence) return;
+	messagePageAnimation?.cancel();
+	messagePageAnimation = null;
+	renderPage();
+	if (!turn.shouldAnimate) return;
+
+	const animation = messagesContainer.animate([
+		{ opacity: 0.35, clipPath: "inset(0 50% 100% 50%)" },
+		{ opacity: 1, clipPath: "inset(0 0 0 0)" },
+	], {
+		duration: 480,
+		easing: "cubic-bezier(0.2, 0.65, 0.3, 1)",
+		fill: "forwards",
+	});
+	messagePageAnimation = animation;
+	animation.finished.then(() => {
+		if (messagePageAnimation !== animation || turn.sequence !== messagePageTurnSequence) return;
+		animation.cancel();
+		messagePageAnimation = null;
+	}).catch(() => {});
+}
 
 function searchKey(options) {
 	return JSON.stringify([options.terms, options.author, options.sort]);
@@ -581,11 +743,26 @@ function countOccurrences(text, term) {
 	return count;
 }
 
-function sortSearchResults(results, sort) {
+function compareSearchResults(first, second, sort) {
 	const timestamp = (result) => Number(result.post.TIMESTAMP) || 0;
-	if (sort === "newest") results.sort((a, b) => timestamp(b) - timestamp(a));
-	else if (sort === "oldest") results.sort((a, b) => timestamp(a) - timestamp(b));
-	else results.sort((a, b) => b.occurrences - a.occurrences || timestamp(b) - timestamp(a));
+	if (sort === "newest") return timestamp(second) - timestamp(first);
+	if (sort === "oldest") return timestamp(first) - timestamp(second);
+	return second.occurrences - first.occurrences || timestamp(second) - timestamp(first);
+}
+
+function sortSearchResults(results, sort) {
+	results.sort((first, second) => compareSearchResults(first, second, sort));
+}
+
+function insertSearchResult(results, result, sort) {
+	let low = 0;
+	let high = results.length;
+	while (low < high) {
+		const middle = Math.floor((low + high) / 2);
+		if (compareSearchResults(results[middle], result, sort) <= 0) low = middle + 1;
+		else high = middle;
+	}
+	results.splice(low, 0, result);
 }
 
 function renderSearchResults(page = 1) {
@@ -604,7 +781,12 @@ function renderSearchResults(page = 1) {
 	if (results.length) {
 		const first = start + 1;
 		const last = start + pageResults.length;
-		status.textContent = `${results.length.toLocaleString()} matches · Showing ${first.toLocaleString()}–${last.toLocaleString()} · Results page ${activeSearchPage} of ${pageCount}`;
+		const progress = activeSearchProgress
+			? ` · Scanning ${activeSearchProgress.completedPages.toLocaleString()} of ${activeSearchProgress.totalPages.toLocaleString()} pages`
+			: "";
+		status.textContent = `${results.length.toLocaleString()} matches · Showing ${first.toLocaleString()}–${last.toLocaleString()} · Results page ${activeSearchPage} of ${pageCount}${progress}`;
+	} else if (activeSearchProgress) {
+		status.textContent = `No matches yet · Scanning archive · ${activeSearchProgress.completedPages.toLocaleString()} of ${activeSearchProgress.totalPages.toLocaleString()} pages`;
 	} else {
 		status.textContent = "No messages matched this search.";
 	}
@@ -622,17 +804,17 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 	searchController?.abort();
 	const controller = new AbortController();
 	searchController = controller;
-	activeSearchResults = null;
+	const matches = [];
+	activeSearchResults = matches;
 	activeSearchOptions = options;
 	activeSearchKey = searchKey(options);
+	activeSearchPage = initialPage;
+	activeSearchProgress = { completedPages: 0, totalPages: manifest.pages.length };
 	for (const pager of pagers) pager.replaceChildren();
 	messagesContainer.replaceChildren();
 	archive.classList.remove("hide");
 	if (pushHistory) setSearchUrl(options, 1, true);
-	status.textContent = `Searching all ${manifest.total_pages.toLocaleString()} archive pages…`;
-	status.className = "archive-count";
-
-	const matches = [];
+	renderSearchResults(initialPage);
 	let nextPage = 0;
 	let completedPages = 0;
 	const worker = async () => {
@@ -647,6 +829,8 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 			});
 			if (!response.ok) throw new Error(`Could not scan archive page ${pageInfo.number} (${response.status})`);
 			const pageData = await response.json();
+			if (controller.signal.aborted || searchController !== controller) return;
+			const pageMatches = [];
 			for (const post of pageData.messages) {
 				const author = String(post.NATION || "").replaceAll("_", " ").toLocaleLowerCase();
 				if (options.author && !author.includes(options.author)) continue;
@@ -663,11 +847,13 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 					}
 					occurrences += termOccurrences;
 				}
-				if (matchedAllTerms) matches.push({ post, occurrences });
+				if (matchedAllTerms) pageMatches.push({ post, occurrences });
 			}
 			completedPages += 1;
-			if (completedPages % 20 === 0 || completedPages === manifest.pages.length) {
-				status.textContent = `Searching archive · ${completedPages.toLocaleString()} of ${manifest.pages.length.toLocaleString()} pages · ${matches.length.toLocaleString()} matches so far`;
+			activeSearchProgress.completedPages = completedPages;
+			for (const result of pageMatches) insertSearchResult(matches, result, options.sort);
+			if (pageMatches.length || completedPages % 20 === 0 || completedPages === manifest.pages.length) {
+				renderSearchResults(activeSearchPage);
 			}
 		}
 	};
@@ -677,12 +863,13 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 		await Promise.all(Array.from({ length: workerCount }, () => worker()));
 		if (controller.signal.aborted || searchController !== controller) return;
 		sortSearchResults(matches, options.sort);
-		activeSearchResults = matches;
-		activeSearchPage = initialPage;
-		if (pushHistory) setSearchUrl(options, initialPage, false);
-		renderSearchResults(initialPage);
+		activeSearchProgress = null;
+		if (pushHistory) setSearchUrl(options, activeSearchPage, false);
+		renderSearchResults(activeSearchPage);
 	} catch (error) {
 		if (error.name === "AbortError" || searchController !== controller) return;
+		controller.abort();
+		activeSearchProgress = null;
 		status.textContent = `Search failed: ${error.message}`;
 		status.className = "error";
 	}
@@ -692,7 +879,11 @@ function navigateToPage(page) {
 	if (activeSearchResults !== null) {
 		activeSearchPage = page;
 		setSearchUrl(activeSearchOptions, page, true);
-		renderSearchResults(page);
+		if (activeSearchProgress) {
+			renderSearchResults(page);
+			return;
+		}
+		beginMessagePageTurn().then((turn) => finishMessagePageTurn(turn, () => renderSearchResults(page)));
 		return;
 	}
 	openPage(page, true);
@@ -722,6 +913,7 @@ document.querySelector("#search-clear").addEventListener("click", () => {
 	activeSearchResults = null;
 	activeSearchOptions = null;
 	activeSearchKey = "";
+	activeSearchProgress = null;
 	const url = new URL(window.location.href);
 	for (const key of ["search", "q", "author", "sort", "result_page"]) url.searchParams.delete(key);
 	window.history.pushState({ mode: "archive" }, "", url);
@@ -737,23 +929,28 @@ async function openPage(page, updateHistory = false) {
 		window.history.pushState({ page: selectedPage }, "", url);
 	}
 	pageController?.abort();
-	pageController = new AbortController();
+	const controller = new AbortController();
+	pageController = controller;
+	const transition = beginMessagePageTurn();
 	status.textContent = `Loading page ${selectedPage.toLocaleString()}…`;
 	status.className = "archive-count";
 	try {
-		const response = await fetch(`data/archive/${pageInfo.file}`, { signal: pageController.signal });
+		const response = await fetch(`data/archive/${pageInfo.file}`, { signal: controller.signal });
 		if (!response.ok) throw new Error(`Could not load page ${selectedPage} (${response.status})`);
 		const pageData = await response.json();
 		if (pageData.page !== selectedPage || !Array.isArray(pageData.messages)) {
 			throw new Error(`The archive page ${selectedPage} is invalid.`);
 		}
-		render(pageData.messages, manifest, selectedPage);
+		const turn = await transition;
+		if (controller.signal.aborted || pageController !== controller) return;
+		finishMessagePageTurn(turn, () => render(pageData.messages, manifest, selectedPage));
 		if (window.location.hash.startsWith("#message-")) {
 			const messageId = decodeURIComponent(window.location.hash.slice(9));
 			requestAnimationFrame(() => document.getElementById(`message-${messageId}`)?.scrollIntoView({ block: "start" }));
 		}
 	} catch (error) {
-		if (error.name === "AbortError") return;
+		if (error.name === "AbortError" || controller.signal.aborted || pageController !== controller) return;
+		await transition;
 		status.textContent = `Unable to display page ${selectedPage}: ${error.message}`;
 		status.className = "error";
 	}
@@ -800,13 +997,17 @@ window.addEventListener("popstate", () => {
 		if (["relevant", "newest", "oldest"].includes(params.get("sort"))) searchSortSelect.value = params.get("sort");
 		const options = getSearchOptions();
 		if (activeSearchResults !== null && activeSearchKey === searchKey(options)) {
-			renderSearchResults(Number(params.get("result_page")) || 1);
+			const page = Number(params.get("result_page")) || 1;
+			activeSearchPage = page;
+			if (activeSearchProgress) renderSearchResults(page);
+			else beginMessagePageTurn().then((turn) => finishMessagePageTurn(turn, () => renderSearchResults(page)));
 		} else searchArchive({ pushHistory: false, initialPage: Number(params.get("result_page")) || 1 });
 		return;
 	}
 	searchController?.abort();
 	activeSearchResults = null;
 	activeSearchOptions = null;
+	activeSearchProgress = null;
 	searchForm.reset();
 	openPage(getCurrentPage(manifest.total_pages));
 });
@@ -824,7 +1025,7 @@ fetch(INDEX_URL)
 		for (const page of index.pages) {
 			for (const messageId of page.message_ids || []) messagePages.set(String(messageId), page.number);
 		}
-		summary.textContent = `${displayNation(index.region)} · ${index.total_messages.toLocaleString()} messages · ${index.page_size} per page`;
+		archiveCount.textContent = `${index.total_messages.toLocaleString()} MESSAGES`;
 		const initialPage = getCurrentPage(index.total_pages);
 		if (!new URLSearchParams(window.location.search).has("page")) {
 			const url = new URL(window.location.href);

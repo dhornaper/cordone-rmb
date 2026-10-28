@@ -1895,12 +1895,13 @@ select.button:active,select.button.active,select.button:focus,select.button.focu
 
 /* Local RMB archive viewer */
 body#page_rmb_archive { background:#EAEAE2; }
-.archive-header { padding:2em max(16px, calc((100% - 1100px) / 2)); background:linear-gradient(115deg,#314a3d,#52705a 58%,#9aab87); color:white; box-shadow:0 2px 6px #555; }
-.archive-heading { max-width:1100px; margin:0 auto; }
+.archive-header { position:relative; isolation:isolate; padding:2em max(16px, calc((100% - 1100px) / 2)); background-color:#314a3d; background-image:linear-gradient(rgba(20,28,25,0.42),rgba(20,28,25,0.48)),url("data/images/banner.webp"); background-size:cover; background-position:center center; color:white; box-shadow:0 2px 6px #555; }
+.archive-heading { box-sizing:border-box; max-width:1100px; margin:0 auto; padding-right:clamp(96px,16vw,200px); }
+.archive-flag { position:absolute; top:12px; right:max(16px,calc((100% - 1100px) / 2)); width:auto; height:clamp(44px,7vw,96px); max-width:min(25vw,170px); object-fit:contain; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.7)); }
 .archive-kicker { margin:0 0 0.6em; color:#e0e8d8; font-size:80%; font-weight:bold; }
 .archive-header h1 { margin:0; color:white; font-size:3em; text-shadow:1px 2px 2px #26382e; }
-.archive-summary { margin:0.6em 0 0; color:#f3f5ef; }
 #content.archive-content { box-sizing:border-box; max-width:1140px; margin:1.5em auto; padding:0 20px 24px; }
+#messages { clip-path:inset(0); }
 .archive-search { display:grid; grid-template-columns:minmax(14em,2fr) minmax(12em,1.2fr) minmax(10em,0.8fr) auto; align-items:end; gap:0.7em 1em; margin:0 0 1em; padding:0 0 1em; border-bottom:1px solid #ccc; }
 .archive-search label { display:grid; gap:0.3em; color:#555; font-size:85%; }
 .archive-search input, .archive-search select { box-sizing:border-box; width:100%; min-height:2.6em; padding:0.45em 0.6em; border:1px solid #aaa; border-radius:2px; background:#fff; color:#222; font:inherit; font-size:100%; }
@@ -1928,6 +1929,11 @@ body#page_rmb_archive { background:#EAEAE2; }
 .archive-message-body { flex:1 1 auto; min-width:0; margin:0; padding:0 0 0 12px; overflow-wrap:anywhere; }
 .archive-message-body .rmbtopline { color:#777; font-size:80%; }
 .archive-message-body p { margin:0.65em 0; white-space:normal; }
+.archive-suppressed-row { display:flex; align-items:center; justify-content:space-between; gap:0.75em; }
+.archive-suppressed-notice { min-width:0; color:#666; }
+.archive-suppressed-toggle { flex:0 0 auto; padding:0.35em 0.7em; border:1px solid #999; border-radius:2px; background:#fff; color:#333; font:inherit; cursor:pointer; }
+.archive-suppressed-toggle:hover { background:#EAEAE2; }
+.archive-suppressed-toggle:focus-visible { outline:2px solid #3e614d; outline-offset:2px; }
 .archive-message-body blockquote { position:relative; margin:1.15em 0 0.8em; padding:1em 2em 0.45em 0.8em; border:1px solid #ccc; background:#fff; color:#555; }
 .archive-message-body blockquote .archive-quote-link { position:absolute; top:0.35em; right:0.45em; display:block; width:12px; height:12px; }
 .archive-message-body blockquote .archive-quote-link img { display:block; width:12px; height:12px; margin:0; }
@@ -1947,7 +1953,7 @@ body#page_rmb_archive { background:#EAEAE2; }
 .archive-message-content ul, .archive-message-content ol { margin:0.6em 0; padding-left:2em; }
 .archive-message-content li { margin:0.25em 0; }
 .archive-message-body details { margin:0.6em 0; padding:0.5em; border:1px solid #ddd; background:#fff; }
-.archive-message-body summary { cursor:pointer; font-weight:bold; }
+.archive-message-body summary { cursor:pointer; font-weight:bold; white-space:pre-wrap; }
 .archive-post-meta { margin:0.45em 0; color:#777; font-size:75%; line-height:1.35; }
 .archive-message-footer { clear:both; margin-top:1em; padding-top:0.5em; border-top:1px dotted #ccc; }
 .archive-likes { color:#8b3038; font-size:85%; }
@@ -1961,6 +1967,8 @@ body#page_rmb_archive { background:#EAEAE2; }
 
 @media (max-width:640px) {
     .archive-header { padding:1.5em 18px; }
+    .archive-heading { padding-right:clamp(88px,22vw,130px); }
+    .archive-flag { top:10px; right:18px; height:clamp(40px,12vw,64px); max-width:22vw; }
     .archive-header h1 { font-size:2.2em; }
     #content.archive-content { margin:1em auto; padding:0 10px 24px; }
     .archive-search { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0.65em; }
