@@ -6,7 +6,7 @@
 	<meta name="theme-color" content="#eaeae2">
 	<title>Regional Message Board Archive</title>
 	<link rel="stylesheet" href="main.css?v=archive-search">
-	<script src="main.js" defer></script>
+	<script src="main.js?v=archive-authors-4" defer></script>
 </head>
 <body id="page_rmb_archive">
 	<header id="top" class="archive-header">
@@ -21,8 +21,16 @@
 			<label class="archive-search-terms" for="search-terms">Message words
 				<input id="search-terms" name="q" type="search" placeholder="Search text">
 			</label>
-			<label class="archive-search-author" for="search-author">Author
-				<input id="search-author" name="author" type="search" placeholder="Nation name">
+			<div class="archive-search-author">
+				<label for="search-author">Author</label>
+				<input id="search-author" name="author" type="search" placeholder="Nation name" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="author-suggestions">
+				<ul id="author-suggestions" class="author-suggestions hide" role="listbox" aria-label="Matching authors"></ul>
+			</div>
+			<label class="archive-search-after" for="search-after">On or after
+				<input id="search-after" name="after" type="date">
+			</label>
+			<label class="archive-search-before" for="search-before">On or before
+				<input id="search-before" name="before" type="date">
 			</label>
 			<label class="archive-search-sort" for="search-sort">Sort
 				<select id="search-sort" name="sort">

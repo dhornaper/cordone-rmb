@@ -1,4 +1,5 @@
 const INDEX_URL = "data/archive/index.json";
+const AUTHORS_URL = "data/archive/authors.json";
 const NATIONSTATES_ORIGIN = "https://www.nationstates.net";
 const ARCHIVE_ICON_URL = "https://www.nationstates.net/images/externallink.gif";
 
@@ -9,6 +10,9 @@ const archiveCount = document.querySelector("#archive-count");
 const searchForm = document.querySelector("#archive-search");
 const searchTermsInput = document.querySelector("#search-terms");
 const searchAuthorInput = document.querySelector("#search-author");
+const authorSuggestions = document.querySelector("#author-suggestions");
+const searchAfterInput = document.querySelector("#search-after");
+const searchBeforeInput = document.querySelector("#search-before");
 const searchSortSelect = document.querySelector("#search-sort");
 const pagers = [
 	document.querySelector("#pagination-top"),
@@ -492,7 +496,7 @@ function createMessage(post, index, searchTerms = []) {
 	}
 	const article = document.createElement("article");
 	article.className = `rmbrow ${index % 2 === 0 ? "odd" : "even"} archive-message`;
-	article.id = post["@id"] ? `message-${escapeHTML(post["@id"])}` : "";
+	article.id = post["@id"] ? `message-${String(post["@id"])}` : "";
 	article.innerHTML = `
 		<header class="rmbauthor2 archive-author">
 			<strong>${entityLink("nation", post.NATION, displayNation(post.NATION))}</strong>
@@ -537,6 +541,16 @@ function createMessage(post, index, searchTerms = []) {
 }
 
 messagesContainer.addEventListener("click", (event) => {
+	const quoteLink = event.target.closest(".archive-quote-link");
+	if (quoteLink) {
+		const targetMessage = document.getElementById(decodeURIComponent(quoteLink.hash.slice(1)));
+		if (targetMessage) {
+			event.preventDefault();
+			const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+			targetMessage.scrollIntoView({ behavior, block: "start" });
+			return;
+		}
+	}
 	const spoilerSummary = event.target.closest(".archive-message-body details > summary");
 	if (spoilerSummary) {
 		event.preventDefault();
@@ -601,9 +615,9 @@ function pageButtons(currentPage, pageCount) {
 
 	for (const page of ordered) {
 		if (page - previous > 1) {
-			controls.push(`<button class="pagpage archive-ellipsis" type="button" data-page-jump data-page-count="${pageCount}" aria-label="Jump to a page">…</button>`);
+			controls.push(`<button class="pagpage archive-ellipsis" type="button" data-page-jump data-page-count="${escapeHTML(pageCount)}" aria-label="Jump to a page">…</button>`);
 		}
-		controls.push(`<button class="pagpage ${page === currentPage ? "pagpage-current" : "pagpage-num"}" type="button" data-page="${page}"${page === currentPage ? ' aria-current="page"' : ""}>${page}</button>`);
+		controls.push(`<button class="pagpage ${page === currentPage ? "pagpage-current" : "pagpage-num"}" type="button" data-page="${escapeHTML(page)}"${page === currentPage ? ' aria-current="page"' : ""}>${escapeHTML(page)}</button>`);
 		previous = page;
 	}
 	return controls.join("");
@@ -626,6 +640,8 @@ function render(posts, manifest, page) {
 
 let manifest;
 let pageController;
+let authorNames = [];
+let activeAuthorSuggestion = -1;
 const messagePages = new Map();
 let searchController;
 let activeSearchResults = null;
@@ -709,8 +725,90 @@ function finishMessagePageTurn(turn, renderPage) {
 }
 
 function searchKey(options) {
-	return JSON.stringify([options.terms, options.author, options.sort]);
+	return JSON.stringify([options.terms, options.author, options.after, options.before, options.sort]);
 }
+
+function hideAuthorSuggestions() {
+	authorSuggestions.classList.add("hide");
+	searchAuthorInput.setAttribute("aria-expanded", "false");
+	searchAuthorInput.removeAttribute("aria-activedescendant");
+	activeAuthorSuggestion = -1;
+}
+
+function renderAuthorSuggestions() {
+	const query = searchAuthorInput.value.trim().replaceAll("_", " ").toLocaleLowerCase();
+	activeAuthorSuggestion = -1;
+	searchAuthorInput.removeAttribute("aria-activedescendant");
+	if (!query || !authorNames.length) {
+		hideAuthorSuggestions();
+		return;
+	}
+	const matches = authorNames
+		.filter((author) => author.toLocaleLowerCase().includes(query))
+		.sort((first, second) => {
+			const firstStarts = first.toLocaleLowerCase().startsWith(query);
+			const secondStarts = second.toLocaleLowerCase().startsWith(query);
+			return Number(secondStarts) - Number(firstStarts) || first.localeCompare(second);
+		})
+		.slice(0, 8);
+	if (!matches.length) {
+		hideAuthorSuggestions();
+		return;
+	}
+	authorSuggestions.replaceChildren(...matches.map((author, index) => {
+		const option = document.createElement("li");
+		option.id = `author-suggestion-${index}`;
+		option.className = "author-suggestion";
+		option.setAttribute("role", "option");
+		option.setAttribute("aria-selected", "false");
+		option.dataset.author = displayNation(author);
+		option.textContent = displayNation(author);
+		return option;
+	}));
+	authorSuggestions.classList.remove("hide");
+	searchAuthorInput.setAttribute("aria-expanded", "true");
+}
+
+function chooseAuthorSuggestion(index) {
+	const option = authorSuggestions.children[index];
+	if (!option) return;
+	searchAuthorInput.value = option.dataset.author;
+	hideAuthorSuggestions();
+}
+
+function moveAuthorSuggestion(direction) {
+	const options = [...authorSuggestions.children];
+	if (!options.length) return;
+	activeAuthorSuggestion = activeAuthorSuggestion < 0
+		? (direction > 0 ? 0 : options.length - 1)
+		: (activeAuthorSuggestion + direction + options.length) % options.length;
+	options.forEach((option, index) => option.setAttribute("aria-selected", String(index === activeAuthorSuggestion)));
+	searchAuthorInput.setAttribute("aria-activedescendant", options[activeAuthorSuggestion].id);
+}
+
+searchAuthorInput.addEventListener("input", renderAuthorSuggestions);
+searchAuthorInput.addEventListener("focus", renderAuthorSuggestions);
+searchAuthorInput.addEventListener("keydown", (event) => {
+	if (event.key === "ArrowDown" && authorSuggestions.children.length) {
+		event.preventDefault();
+		moveAuthorSuggestion(1);
+	} else if (event.key === "ArrowUp" && authorSuggestions.children.length) {
+		event.preventDefault();
+		moveAuthorSuggestion(-1);
+	} else if (event.key === "Enter" && activeAuthorSuggestion >= 0) {
+		event.preventDefault();
+		chooseAuthorSuggestion(activeAuthorSuggestion);
+	} else if (event.key === "Escape") {
+		hideAuthorSuggestions();
+	}
+});
+authorSuggestions.addEventListener("click", (event) => {
+	const option = event.target.closest("[role=option]");
+	if (option) chooseAuthorSuggestion([...authorSuggestions.children].indexOf(option));
+});
+document.addEventListener("pointerdown", (event) => {
+	if (!event.target.closest(".archive-search-author")) hideAuthorSuggestions();
+});
 
 function setSearchUrl(options, page, pushState) {
 	const url = new URL(window.location.href);
@@ -718,6 +816,8 @@ function setSearchUrl(options, page, pushState) {
 	url.searchParams.set("search", "1");
 	url.searchParams.set("q", options.terms.join(" "));
 	url.searchParams.set("author", options.author);
+	url.searchParams.set("after", options.after);
+	url.searchParams.set("before", options.before);
 	url.searchParams.set("sort", options.sort);
 	if (page > 1) url.searchParams.set("result_page", String(page));
 	else url.searchParams.delete("result_page");
@@ -729,8 +829,53 @@ function getSearchOptions() {
 	return {
 		terms: [...new Set(searchTermsInput.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean))],
 		author: searchAuthorInput.value.trim().toLocaleLowerCase().replaceAll("_", " "),
+		after: searchAfterInput.value,
+		before: searchBeforeInput.value,
 		sort: searchSortSelect.value,
 	};
+}
+
+function localDateStartTimestamp(value) {
+	return new Date(`${value}T00:00:00`).getTime() / 1000;
+}
+
+function localDateInputValue(timestamp) {
+	const date = new Date(Number(timestamp) * 1000);
+	if (Number.isNaN(date.getTime())) return "";
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const day = String(date.getDate()).padStart(2, "0");
+	return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function setDefaultDateBounds(index) {
+	const timestamps = index.pages.flatMap((page) => [
+		Number(page.earliest_timestamp),
+		Number(page.latest_timestamp),
+	]).filter(Number.isFinite);
+	if (!timestamps.length) return;
+
+	searchAfterInput.defaultValue = localDateInputValue(Math.min(...timestamps));
+	searchBeforeInput.defaultValue = localDateInputValue(Math.max(...timestamps));
+	searchAfterInput.value = searchAfterInput.defaultValue;
+	searchBeforeInput.value = searchBeforeInput.defaultValue;
+}
+
+function searchPages(afterTimestamp, beforeTimestamp) {
+	const hasDateBounds = manifest.pages.every((page) =>
+		page.earliest_timestamp !== null
+		&& page.earliest_timestamp !== undefined
+		&& Number.isFinite(Number(page.earliest_timestamp))
+		&& page.latest_timestamp !== null
+		&& page.latest_timestamp !== undefined
+		&& Number.isFinite(Number(page.latest_timestamp)));
+	if (!hasDateBounds) return manifest.pages;
+
+	return manifest.pages.filter((page) => {
+		const earliest = Number(page.earliest_timestamp);
+		const latest = Number(page.latest_timestamp);
+		return (afterTimestamp === null || latest >= afterTimestamp)
+			&& (beforeTimestamp === null || earliest < beforeTimestamp);
+	});
 }
 
 function countOccurrences(text, term) {
@@ -752,17 +897,6 @@ function compareSearchResults(first, second, sort) {
 
 function sortSearchResults(results, sort) {
 	results.sort((first, second) => compareSearchResults(first, second, sort));
-}
-
-function insertSearchResult(results, result, sort) {
-	let low = 0;
-	let high = results.length;
-	while (low < high) {
-		const middle = Math.floor((low + high) / 2);
-		if (compareSearchResults(results[middle], result, sort) <= 0) low = middle + 1;
-		else high = middle;
-	}
-	results.splice(low, 0, result);
 }
 
 function renderSearchResults(page = 1) {
@@ -796,8 +930,13 @@ function renderSearchResults(page = 1) {
 
 async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 	const options = getSearchOptions();
-	if (!options.terms.length && !options.author) {
-		status.textContent = "Enter at least one message word or an author.";
+	if (!options.terms.length && !options.author && !options.after && !options.before) {
+		status.textContent = "Enter a message word, author, or date filter.";
+		status.className = "error";
+		return;
+	}
+	if (options.after && options.before && options.after > options.before) {
+		status.textContent = "The start date must be on or before the end date.";
 		status.className = "error";
 		return;
 	}
@@ -809,31 +948,40 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 	activeSearchOptions = options;
 	activeSearchKey = searchKey(options);
 	activeSearchPage = initialPage;
-	activeSearchProgress = { completedPages: 0, totalPages: manifest.pages.length };
+	const afterTimestamp = options.after ? localDateStartTimestamp(options.after) : null;
+	let beforeTimestamp = options.before ? localDateStartTimestamp(options.before) : null;
+	if (beforeTimestamp !== null) {
+		const dayAfterBefore = new Date(beforeTimestamp * 1000);
+		dayAfterBefore.setDate(dayAfterBefore.getDate() + 1);
+		beforeTimestamp = dayAfterBefore.getTime() / 1000;
+	}
+	const pagesToScan = searchPages(afterTimestamp, beforeTimestamp);
+	activeSearchProgress = { completedPages: 0, totalPages: pagesToScan.length };
 	for (const pager of pagers) pager.replaceChildren();
 	messagesContainer.replaceChildren();
 	archive.classList.remove("hide");
 	if (pushHistory) setSearchUrl(options, 1, true);
 	renderSearchResults(initialPage);
-	let nextPage = 0;
 	let completedPages = 0;
-	const worker = async () => {
-		while (!controller.signal.aborted) {
-			const pageIndex = nextPage;
-			nextPage += 1;
-			if (pageIndex >= manifest.pages.length) return;
-			const pageInfo = manifest.pages[pageIndex];
+	const batchSize = 32;
+	try {
+		for (let batchStart = 0; batchStart < pagesToScan.length; batchStart += batchSize) {
+			const pageBatch = pagesToScan.slice(batchStart, batchStart + batchSize);
+			const batchMatches = await Promise.all(pageBatch.map(async (pageInfo) => {
 			const response = await fetch(`data/archive/${pageInfo.file}`, {
 				signal: controller.signal,
 				cache: "no-store",
 			});
 			if (!response.ok) throw new Error(`Could not scan archive page ${pageInfo.number} (${response.status})`);
 			const pageData = await response.json();
-			if (controller.signal.aborted || searchController !== controller) return;
+			if (controller.signal.aborted || searchController !== controller) return [];
 			const pageMatches = [];
 			for (const post of pageData.messages) {
+				const timestamp = Number(post.TIMESTAMP) || 0;
+				if (afterTimestamp !== null && timestamp < afterTimestamp) continue;
+				if (beforeTimestamp !== null && timestamp >= beforeTimestamp) continue;
 				const author = String(post.NATION || "").replaceAll("_", " ").toLocaleLowerCase();
-				if (options.author && !author.includes(options.author)) continue;
+				if (options.author && author !== options.author) continue;
 				const text = String(post.MESSAGE || "")
 					.replace(/\[[^\]]*\]/g, " ")
 					.toLocaleLowerCase();
@@ -849,18 +997,15 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 				}
 				if (matchedAllTerms) pageMatches.push({ post, occurrences });
 			}
-			completedPages += 1;
+			return pageMatches;
+			}));
+			if (controller.signal.aborted || searchController !== controller) return;
+			for (const pageMatches of batchMatches) matches.push(...pageMatches);
+			completedPages += pageBatch.length;
 			activeSearchProgress.completedPages = completedPages;
-			for (const result of pageMatches) insertSearchResult(matches, result, options.sort);
-			if (pageMatches.length || completedPages % 20 === 0 || completedPages === manifest.pages.length) {
-				renderSearchResults(activeSearchPage);
-			}
+			sortSearchResults(matches, options.sort);
+			renderSearchResults(activeSearchPage);
 		}
-	};
-
-	try {
-		const workerCount = Math.min(8, manifest.pages.length);
-		await Promise.all(Array.from({ length: workerCount }, () => worker()));
 		if (controller.signal.aborted || searchController !== controller) return;
 		sortSearchResults(matches, options.sort);
 		activeSearchProgress = null;
@@ -891,13 +1036,17 @@ function navigateToPage(page) {
 
 searchForm.addEventListener("submit", (event) => {
 	event.preventDefault();
+	hideAuthorSuggestions();
 	searchArchive();
 });
 
 searchSortSelect.addEventListener("change", () => {
 	if (!activeSearchOptions) return;
 	const options = getSearchOptions();
-	if (options.author !== activeSearchOptions.author || options.terms.join("\0") !== activeSearchOptions.terms.join("\0")) return;
+	if (options.author !== activeSearchOptions.author
+		|| options.after !== activeSearchOptions.after
+		|| options.before !== activeSearchOptions.before
+		|| options.terms.join("\0") !== activeSearchOptions.terms.join("\0")) return;
 	activeSearchOptions.sort = options.sort;
 	activeSearchKey = searchKey(activeSearchOptions);
 	setSearchUrl(activeSearchOptions, 1, true);
@@ -909,15 +1058,21 @@ searchSortSelect.addEventListener("change", () => {
 
 document.querySelector("#search-clear").addEventListener("click", () => {
 	searchController?.abort();
+	hideAuthorSuggestions();
 	searchForm.reset();
 	activeSearchResults = null;
 	activeSearchOptions = null;
 	activeSearchKey = "";
 	activeSearchProgress = null;
 	const url = new URL(window.location.href);
-	for (const key of ["search", "q", "author", "sort", "result_page"]) url.searchParams.delete(key);
+	for (const key of ["search", "q", "author", "after", "before", "sort", "result_page"]) url.searchParams.delete(key);
 	window.history.pushState({ mode: "archive" }, "", url);
 	if (manifest) openPage(getCurrentPage(manifest.total_pages));
+});
+
+document.querySelector(".archive-footer a[href=\"#top\"]").addEventListener("click", (event) => {
+	event.preventDefault();
+	window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
 async function openPage(page, updateHistory = false) {
@@ -994,6 +1149,8 @@ window.addEventListener("popstate", () => {
 	if (params.get("search") === "1") {
 		searchTermsInput.value = params.get("q") || "";
 		searchAuthorInput.value = params.get("author") || "";
+		searchAfterInput.value = params.get("after") || "";
+		searchBeforeInput.value = params.get("before") || "";
 		if (["relevant", "newest", "oldest"].includes(params.get("sort"))) searchSortSelect.value = params.get("sort");
 		const options = getSearchOptions();
 		if (activeSearchResults !== null && activeSearchKey === searchKey(options)) {
@@ -1012,7 +1169,7 @@ window.addEventListener("popstate", () => {
 	openPage(getCurrentPage(manifest.total_pages));
 });
 
-fetch(INDEX_URL)
+fetch(INDEX_URL, { cache: "no-store" })
 	.then((response) => {
 		if (!response.ok) throw new Error(`Could not load archive index (${response.status})`);
 		return response.json();
@@ -1022,6 +1179,18 @@ fetch(INDEX_URL)
 			throw new Error("The archive index is invalid. Rebuild it with build_archive.py.");
 		}
 		manifest = index;
+		setDefaultDateBounds(index);
+		fetch(AUTHORS_URL, { cache: "no-store" })
+			.then((response) => {
+				if (!response.ok) throw new Error(`Could not load author index (${response.status})`);
+				return response.json();
+			})
+			.then((authors) => {
+				if (!Array.isArray(authors)) return;
+				authorNames = authors.filter((author) => typeof author === "string");
+				if (document.activeElement === searchAuthorInput) renderAuthorSuggestions();
+			})
+			.catch(() => {});
 		for (const page of index.pages) {
 			for (const messageId of page.message_ids || []) messagePages.set(String(messageId), page.number);
 		}
@@ -1036,6 +1205,8 @@ fetch(INDEX_URL)
 		if (params.get("search") === "1") {
 			searchTermsInput.value = params.get("q") || "";
 			searchAuthorInput.value = params.get("author") || "";
+			searchAfterInput.value = params.get("after") || searchAfterInput.defaultValue;
+			searchBeforeInput.value = params.get("before") || searchBeforeInput.defaultValue;
 			if (["relevant", "newest", "oldest"].includes(params.get("sort"))) searchSortSelect.value = params.get("sort");
 			searchArchive({ pushHistory: false, initialPage: Number(params.get("result_page")) || 1 });
 		} else openPage(initialPage);
