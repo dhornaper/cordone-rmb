@@ -583,10 +583,81 @@ a.pagpage:hover,
 }
 
 .archive-message-footer {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6em;
     clear: both;
     margin-top: 1em;
     padding-top: 0.5em;
     border-top: 1px dotted #ccc;
+}
+
+.archive-quote-toggle,
+.archive-quote-copy {
+    min-height: 2.2em;
+    padding: 0.3em 0.65em;
+    border: 1px solid #999;
+    border-radius: 2px;
+    background: #fff;
+    color: #333;
+    font: inherit;
+    cursor: pointer;
+}
+
+.archive-quote-toggle {
+    margin-left: auto;
+}
+
+.archive-quote-toggle:hover,
+.archive-quote-copy:hover {
+    background: #eaeae2;
+}
+
+.archive-quote-toggle:focus-visible,
+.archive-quote-copy:focus-visible,
+.archive-quote-composer textarea:focus-visible {
+    outline: 2px solid #3e614d;
+    outline-offset: 2px;
+}
+
+.archive-quote-composer {
+    flex: 1 0 100%;
+    min-width: 0;
+}
+
+.archive-quote-composer label {
+    display: block;
+    margin-bottom: 0.35em;
+    color: #555;
+    font-size: 85%;
+}
+
+.archive-quote-composer textarea {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-height: 8em;
+    padding: 0.55em;
+    border: 1px solid #aaa;
+    border-radius: 2px;
+    background: #fff;
+    color: #222;
+    font: inherit;
+    font-family: monospace;
+    resize: vertical;
+}
+
+.archive-quote-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65em;
+    margin-top: 0.45em;
+}
+
+.archive-quote-copy-status {
+    color: #555;
+    font-size: 85%;
 }
 
 .archive-likes {

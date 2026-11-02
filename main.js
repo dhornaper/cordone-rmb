@@ -492,8 +492,12 @@ function createMessage(post, index, searchTerms = []) {
 				likeSummary += ` <button class="archive-likers-toggle" type="button" aria-label="Show ${otherCount} more likers">${otherLabel}</button><span class="archive-likers-extra" aria-live="polite" tabindex="-1" hidden>, ${remainingLikers}</span>`;
 			}
 		}
-		likes = `<footer class="archive-message-footer"><span class="archive-likes"><span class="archive-heart" aria-hidden="true">&#9829;</span> ${likeSummary}</span></footer>`;
+		likes = `<span class="archive-likes"><span class="archive-heart" aria-hidden="true">&#9829;</span> ${likeSummary}</span>`;
 	}
+	const quotePanelId = `archive-quote-${post["@id"] || index}`;
+	const archiveUrl = "https://dhornaper.github.io/cordone-rmb/main.html";
+	const quoteMessage = decodeEntities(String(post.MESSAGE ?? ""));
+	const quoteText = `[quote=${post.NATION || "Unknown"};${post["@id"] || ""}]${quoteMessage}[/quote]\n\n(From the Cordone RMB archive: [u]${archiveUrl}[/u])`;
 	const article = document.createElement("article");
 	article.className = `rmbrow ${index % 2 === 0 ? "odd" : "even"} archive-message`;
 	article.id = post["@id"] ? `message-${String(post["@id"])}` : "";
@@ -506,8 +510,20 @@ function createMessage(post, index, searchTerms = []) {
 		</header>
 		<div class="rmbmsg2 archive-message-body">
 			<div class="archive-message-content"></div>
-			${likes}
+			<footer class="archive-message-footer">
+				${likes}
+				<button class="archive-quote-toggle" type="button" aria-expanded="false" aria-controls="${escapeHTML(quotePanelId)}">Quote</button>
+				<div id="${escapeHTML(quotePanelId)}" class="archive-quote-composer" hidden>
+					<label for="${escapeHTML(quotePanelId)}-text">Quote for NationStates RMB</label>
+					<textarea id="${escapeHTML(quotePanelId)}-text" readonly></textarea>
+					<div class="archive-quote-actions">
+						<button class="archive-quote-copy" type="button">Copy quote</button>
+						<span class="archive-quote-copy-status" role="status" aria-live="polite"></span>
+					</div>
+				</div>
+			</footer>
 		</div>`;
+	article.querySelector(`#${CSS.escape(quotePanelId)}-text`).value = quoteText;
 	const messageContent = article.querySelector(".archive-message-content");
 	messageContent.append(formatMessage(post.MESSAGE));
 	if (searchTerms.length) highlightSearchTerms(messageContent, searchTerms);
@@ -541,6 +557,37 @@ function createMessage(post, index, searchTerms = []) {
 }
 
 messagesContainer.addEventListener("click", (event) => {
+	const quoteToggle = event.target.closest(".archive-quote-toggle");
+	if (quoteToggle) {
+		const panel = document.getElementById(quoteToggle.getAttribute("aria-controls"));
+		if (!panel) return;
+		const opening = quoteToggle.getAttribute("aria-expanded") !== "true";
+		quoteToggle.setAttribute("aria-expanded", String(opening));
+		quoteToggle.textContent = opening ? "Hide quote" : "Quote";
+		panel.hidden = !opening;
+		return;
+	}
+	const copyButton = event.target.closest(".archive-quote-copy");
+	if (copyButton) {
+		const panel = copyButton.closest(".archive-quote-composer");
+		const textarea = panel.querySelector("textarea");
+		const copyStatus = panel.querySelector(".archive-quote-copy-status");
+		try {
+			if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable");
+			navigator.clipboard.writeText(textarea.value).then(() => {
+				copyStatus.textContent = "Copied.";
+			}).catch(() => {
+				textarea.focus();
+				textarea.select();
+				copyStatus.textContent = document.execCommand("copy") ? "Copied." : "Select and copy the quote above.";
+			});
+		} catch {
+			textarea.focus();
+			textarea.select();
+			copyStatus.textContent = document.execCommand("copy") ? "Copied." : "Select and copy the quote above.";
+		}
+		return;
+	}
 	const quoteLink = event.target.closest(".archive-quote-link");
 	if (quoteLink) {
 		const targetMessage = document.getElementById(decodeURIComponent(quoteLink.hash.slice(1)));
