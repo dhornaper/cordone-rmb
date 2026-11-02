@@ -137,7 +137,9 @@ function formatMessage(value) {
 			link.target = "_blank";
 			link.rel = "noopener noreferrer";
 			pushTag(name, link, () => {
-				const href = entityHref(name, link.textContent);
+				const label = link.textContent;
+				if (name === "nation") link.textContent = displayNation(label);
+				const href = entityHref(name, label);
 				if (href) link.href = href;
 				else link.replaceWith(document.createTextNode(link.textContent));
 			});
