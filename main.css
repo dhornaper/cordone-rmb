@@ -480,13 +480,10 @@ a.pagpage:hover,
     display: block;
     width: 12px;
     height: 12px;
-}
-
-.archive-message-body blockquote .archive-quote-link img {
-    display: block;
-    width: 12px;
-    height: 12px;
-    margin: 0;
+    font-size: 13px;
+    line-height: 12px;
+    text-align: center;
+    text-decoration: none;
 }
 
 .archive-message-content {

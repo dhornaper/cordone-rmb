@@ -197,12 +197,7 @@ function formatMessage(value) {
 					postLink.className = "archive-quote-link";
 					postLink.target = "_self";
 					postLink.setAttribute("aria-label", `Open quoted post ${postId} in this archive`);
-					const icon = document.createElement("img");
-					icon.src = ARCHIVE_ICON_URL;
-					icon.alt = "";
-					icon.width = 12;
-					icon.height = 12;
-					postLink.append(icon);
+					postLink.textContent = "↗";
 					quote.append(postLink);
 				}
 			}
