@@ -261,6 +261,27 @@ a.pagpage:hover,
     filter: brightness(0.94);
 }
 
+.archive-quote-toggle,
+.archive-quote-copy {
+    min-height: 2.2em;
+    padding: 0.3em 0.65em;
+    border: 1px solid #999;
+    border-radius: 2px;
+    background: #fff;
+    color: #333;
+    font: inherit;
+    cursor: pointer;
+}
+
+.archive-quote-toggle {
+    margin-left: auto;
+}
+
+.archive-quote-toggle:hover,
+.archive-quote-copy:hover {
+    background: #eaeae2;
+}
+
 .archive-search-match {
     background: #fff08a;
     color: inherit;
@@ -447,6 +468,7 @@ a.pagpage:hover,
     margin: 1.15em 0 0.8em;
     padding: 1em 2em 0.45em 0.8em;
     border: 1px solid #ccc;
+    border-radius: 5px;
     background: #fff;
     color: #555;
 }
@@ -591,27 +613,6 @@ a.pagpage:hover,
     margin-top: 1em;
     padding-top: 0.5em;
     border-top: 1px dotted #ccc;
-}
-
-.archive-quote-toggle,
-.archive-quote-copy {
-    min-height: 2.2em;
-    padding: 0.3em 0.65em;
-    border: 1px solid #999;
-    border-radius: 2px;
-    background: #fff;
-    color: #333;
-    font: inherit;
-    cursor: pointer;
-}
-
-.archive-quote-toggle {
-    margin-left: auto;
-}
-
-.archive-quote-toggle:hover,
-.archive-quote-copy:hover {
-    background: #eaeae2;
 }
 
 .archive-quote-toggle:focus-visible,

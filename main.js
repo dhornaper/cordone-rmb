@@ -20,13 +20,10 @@ const pagers = [
 ];
 
 function escapeHTML(value) {
-	return String(value ?? "").replace(/[&<>"']/g, (character) => ({
-		"&": "&amp;",
-		"<": "&lt;",
-		">": "&gt;",
-		'"': "&quot;",
-		"'": "&#39;",
-	}[character]));
+	const text = String(value ?? "");
+	const container = document.createElement("textarea");
+	container.textContent = text;
+	return container.innerHTML;
 }
 
 function formatMessage(value) {
@@ -495,9 +492,11 @@ function createMessage(post, index, searchTerms = []) {
 		likes = `<span class="archive-likes"><span class="archive-heart" aria-hidden="true">&#9829;</span> ${likeSummary}</span>`;
 	}
 	const quotePanelId = `archive-quote-${post["@id"] || index}`;
-	const archiveUrl = "https://dhornaper.github.io/cordone-rmb/main.html";
+	const archiveUrl = "https://dhornaper.github.io/cordone-rmb/";
+	const archiveHref = post["@id"] && archiveMessageHref(post["@id"]);
+	const quoteArchiveUrl = archiveHref ? new URL(archiveHref, archiveUrl).href : archiveUrl;
 	const quoteMessage = decodeEntities(String(post.MESSAGE ?? ""));
-	const quoteText = `[quote=${post.NATION || "Unknown"};${post["@id"] || ""}]${quoteMessage}[/quote]\n\n(From the Cordone RMB archive: [u]${archiveUrl}[/u])`;
+	const quoteText = `[quote=${post.NATION || "Unknown"};${post["@id"] || ""}]${quoteMessage}[/quote]\n\n(From the Cordone RMB archive: [u]${quoteArchiveUrl}[/u])`;
 	const article = document.createElement("article");
 	article.className = `rmbrow ${index % 2 === 0 ? "odd" : "even"} archive-message`;
 	article.id = post["@id"] ? `message-${String(post["@id"])}` : "";
@@ -670,14 +669,19 @@ function pageButtons(currentPage, pageCount) {
 	return controls.join("");
 }
 
+function renderPageControls(currentPage, pageCount, labels = {}) {
+	const prevLabel = labels.previous || "Previous page";
+	const nextLabel = labels.next || "Next page";
+	return [
+		`<button class="pagpage pagpage-arrow" type="button" data-page="${Math.max(1, currentPage - 1)}" aria-label="${prevLabel}"${currentPage === 1 ? " disabled" : ""}>‹</button>`,
+		pageButtons(currentPage, pageCount),
+		`<button class="pagpage pagpage-arrow" type="button" data-page="${Math.min(pageCount, currentPage + 1)}" aria-label="${nextLabel}"${currentPage === pageCount ? " disabled" : ""}>›</button>`,
+	].join("");
+}
+
 function render(posts, manifest, page) {
 	messagesContainer.replaceChildren(...posts.map((post, index) => createMessage(post, index)));
-	const pageLinks = [
-		`<button class="pagpage pagpage-arrow" type="button" data-page="${Math.max(1, page - 1)}" aria-label="Previous page"${page === 1 ? " disabled" : ""}>‹</button>`,
-		pageButtons(page, manifest.total_pages),
-		`<button class="pagpage pagpage-arrow" type="button" data-page="${Math.min(manifest.total_pages, page + 1)}" aria-label="Next page"${page === manifest.total_pages ? " disabled" : ""}>›</button>`,
-	];
-	for (const pager of pagers) pager.innerHTML = pageLinks.join("");
+	for (const pager of pagers) pager.innerHTML = renderPageControls(page, manifest.total_pages);
 	const firstMessage = (page - 1) * manifest.page_size + 1;
 	const lastMessage = firstMessage + posts.length - 1;
 	status.textContent = `Messages ${firstMessage.toLocaleString()}–${lastMessage.toLocaleString()} of ${manifest.total_messages.toLocaleString()} · Page ${page.toLocaleString()} of ${manifest.total_pages.toLocaleString()}`;
@@ -953,12 +957,10 @@ function renderSearchResults(page = 1) {
 	const start = (activeSearchPage - 1) * manifest.page_size;
 	const pageResults = results.slice(start, start + manifest.page_size);
 	messagesContainer.replaceChildren(...pageResults.map((result, index) => createMessage(result.post, index, activeSearchOptions.terms)));
-	const pagerContent = [
-		`<button class="pagpage pagpage-arrow" type="button" data-page="${Math.max(1, activeSearchPage - 1)}" aria-label="Previous results page"${activeSearchPage === 1 ? " disabled" : ""}>‹</button>`,
-		pageButtons(activeSearchPage, pageCount),
-		`<button class="pagpage pagpage-arrow" type="button" data-page="${Math.min(pageCount, activeSearchPage + 1)}" aria-label="Next results page"${activeSearchPage === pageCount ? " disabled" : ""}>›</button>`,
-	].join("");
-	for (const pager of pagers) pager.innerHTML = pagerContent;
+	for (const pager of pagers) pager.innerHTML = renderPageControls(activeSearchPage, pageCount, {
+		previous: "Previous results page",
+		next: "Next results page",
+	});
 	if (results.length) {
 		const first = start + 1;
 		const last = start + pageResults.length;
@@ -973,6 +975,17 @@ function renderSearchResults(page = 1) {
 	}
 	status.className = "archive-count";
 	archive.classList.remove("hide");
+}
+
+function normalizeSearchDateBounds(options) {
+	const afterTimestamp = options.after ? localDateStartTimestamp(options.after) : null;
+	let beforeTimestamp = options.before ? localDateStartTimestamp(options.before) : null;
+	if (beforeTimestamp !== null) {
+		const dayAfterBefore = new Date(beforeTimestamp * 1000);
+		dayAfterBefore.setDate(dayAfterBefore.getDate() + 1);
+		beforeTimestamp = dayAfterBefore.getTime() / 1000;
+	}
+	return { afterTimestamp, beforeTimestamp };
 }
 
 async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
@@ -995,13 +1008,7 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 	activeSearchOptions = options;
 	activeSearchKey = searchKey(options);
 	activeSearchPage = initialPage;
-	const afterTimestamp = options.after ? localDateStartTimestamp(options.after) : null;
-	let beforeTimestamp = options.before ? localDateStartTimestamp(options.before) : null;
-	if (beforeTimestamp !== null) {
-		const dayAfterBefore = new Date(beforeTimestamp * 1000);
-		dayAfterBefore.setDate(dayAfterBefore.getDate() + 1);
-		beforeTimestamp = dayAfterBefore.getTime() / 1000;
-	}
+	const { afterTimestamp, beforeTimestamp } = normalizeSearchDateBounds(options);
 	const pagesToScan = searchPages(afterTimestamp, beforeTimestamp);
 	activeSearchProgress = { completedPages: 0, totalPages: pagesToScan.length };
 	for (const pager of pagers) pager.replaceChildren();
