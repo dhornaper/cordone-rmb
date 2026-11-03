@@ -862,6 +862,7 @@ function chooseAuthorSuggestion(index) {
 	const option = authorSuggestions.children[index];
 	if (!option) return;
 	searchAuthorInput.value = option.dataset.author;
+	searchAuthorInput.focus();
 	hideAuthorSuggestions();
 }
 
@@ -949,7 +950,7 @@ function setDefaultDateBounds(index) {
 	searchBeforeInput.value = searchBeforeInput.defaultValue;
 }
 
-function searchPages(afterTimestamp, beforeTimestamp) {
+function searchPages(afterTimestamp, beforeTimestamp, author = "") {
 	const hasDateBounds = manifest.pages.every((page) =>
 		page.earliest_timestamp !== null
 		&& page.earliest_timestamp !== undefined
@@ -963,7 +964,8 @@ function searchPages(afterTimestamp, beforeTimestamp) {
 		const earliest = Number(page.earliest_timestamp);
 		const latest = Number(page.latest_timestamp);
 		return (afterTimestamp === null || latest >= afterTimestamp)
-			&& (beforeTimestamp === null || earliest < beforeTimestamp);
+			&& (beforeTimestamp === null || earliest < beforeTimestamp)
+			&& (!author || !Array.isArray(page.authors) || page.authors.includes(author));
 	});
 }
 
@@ -1052,7 +1054,7 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 	activeSearchKey = searchKey(options);
 	activeSearchPage = initialPage;
 	const { afterTimestamp, beforeTimestamp } = normalizeSearchDateBounds(options);
-	const pagesToScan = searchPages(afterTimestamp, beforeTimestamp)
+	const pagesToScan = searchPages(afterTimestamp, beforeTimestamp, options.author)
 		.filter((pageInfo) => !activeSearchScannedPages.has(pageInfo.file));
 	if (!pagesToScan.length) {
 		activeSearchProgress = null;
@@ -1096,6 +1098,12 @@ async function searchArchive({ pushHistory = true, initialPage = 1 } = {}) {
 			const pageMatches = [];
 			const phrase = options.terms.join(" ");
 			for (const post of pageData.messages) {
+				const author = String(post.NATION || "").replaceAll("_", " ").toLocaleLowerCase();
+				if (options.author && author !== options.author) continue;
+				if (!options.terms.length) {
+					pageMatches.push({ post, occurrences: 0, phraseOccurrences: 0 });
+					continue;
+				}
 				const text = String(post.MESSAGE || "")
 					.replace(/\[[^\]]*\]/g, " ")
 					.toLocaleLowerCase()
