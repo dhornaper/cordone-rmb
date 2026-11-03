@@ -277,6 +277,10 @@ a.pagpage:hover,
     margin-left: auto;
 }
 
+.archive-message-footer-search .archive-quote-toggle {
+    margin-left: 0;
+}
+
 .archive-quote-toggle:hover,
 .archive-quote-copy:hover {
     background: #eaeae2;
@@ -405,6 +409,46 @@ a.pagpage:hover,
     margin: 0.5em 0;
     color: #888;
     font-size: 75%;
+}
+
+.archive-context-link:link,
+.archive-context-link:visited {
+    display: inline-block;
+    padding: 0.3em 0.65em;
+    border: 1px solid #999;
+    border-radius: 2px;
+    background: #fff;
+    color: #333;
+    font-size: 75%;
+    text-decoration: none;
+}
+
+.archive-context-link:hover {
+    background: #eaeae2;
+    color: #111;
+    text-decoration: none;
+}
+
+.archive-message-footer-search .archive-context-link,
+.archive-message-footer-search .archive-quote-toggle {
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: 0 0 6em;
+    align-items: center;
+    justify-content: center;
+    width: 6em;
+    min-height: 2.2em;
+    padding: 0.3em 0.65em;
+    font: inherit;
+    text-align: center;
+}
+
+.archive-message-footer-search .archive-context-link {
+    margin-left: auto;
+}
+
+.archive-message-footer-search .archive-quote-toggle {
+    margin-left: 0;
 }
 
 .archive-message-body {
