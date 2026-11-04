@@ -438,6 +438,9 @@ function nationStatesTarget(target) {
 
 function entityHref(type, label) {
 	const slug = String(label || "").trim().toLowerCase().replace(/[\s_]+/g, "_");
+	if (type === "nation" && slug === "nationstates_moderators") {
+		return nationStatesTarget("page=help");
+	}
 	return slug ? nationStatesTarget(`${type}=${slug}`) : null;
 }
 
@@ -482,7 +485,7 @@ function highlightSearchTerms(root, terms) {
 	}
 }
 
-function createMessage(post, index, searchTerms = []) {
+function createMessage(post, index, searchTerms = [], isSearchResult = false) {
 	const metadata = [
 		post.EMBASSY ? `Embassy: ${entityLink("region", post.EMBASSY, post.EMBASSY)}` : "",
 		post.EDITED ? `Edited: ${escapeHTML(formatDate(post.EDITED))}` : "",
@@ -509,10 +512,12 @@ function createMessage(post, index, searchTerms = []) {
 		}
 		likes = `<span class="archive-likes"><span class="archive-heart" aria-hidden="true">&#9829;</span> ${likeSummary}</span>`;
 	}
+	const authorDeleted = post.STATUS === "2";
+	const moderatorSuppression = post.SUPPRESSOR === "!mod";
 	const quotePanelId = `archive-quote-${post["@id"] || index}`;
 	const archiveUrl = "https://dhornaper.github.io/cordone-rmb/";
 	const archiveHref = post["@id"] && archiveMessageHref(post["@id"]);
-	const contextHref = searchTerms.length && archiveHref ? archiveHref : null;
+	const contextHref = isSearchResult && archiveHref ? archiveHref : null;
 	const quoteArchiveUrl = archiveHref ? new URL(archiveHref, archiveUrl).href : archiveUrl;
 	const quoteMessage = decodeEntities(String(post.MESSAGE ?? ""));
 	const quoteText = `[quote=${post.NATION || "Unknown"};${post["@id"] || ""}]${quoteMessage}[/quote]\n\n(From the Cordone RMB archive: [u]${quoteArchiveUrl}[/u])`;
@@ -531,26 +536,28 @@ function createMessage(post, index, searchTerms = []) {
 			<footer class="archive-message-footer${contextHref ? " archive-message-footer-search" : ""}">
 				${likes}
 				${contextHref ? `<a class="archive-context-link" href="${escapeHTML(contextHref)}" target="_blank" rel="noopener noreferrer" aria-label="View context for post ${escapeHTML(post["@id"])} in a new tab">Context</a>` : ""}
-				<button class="archive-quote-toggle" type="button" aria-expanded="false" aria-controls="${escapeHTML(quotePanelId)}">Quote</button>
-				<div id="${escapeHTML(quotePanelId)}" class="archive-quote-composer" hidden>
-					<label for="${escapeHTML(quotePanelId)}-text">Quote for NationStates RMB</label>
-					<textarea id="${escapeHTML(quotePanelId)}-text" readonly></textarea>
-					<div class="archive-quote-actions">
-						<button class="archive-quote-copy" type="button">Copy quote</button>
-						<span class="archive-quote-copy-status" role="status" aria-live="polite"></span>
+				${!authorDeleted && !moderatorSuppression ? `
+					<button class="archive-quote-toggle" type="button" aria-expanded="false" aria-controls="${escapeHTML(quotePanelId)}">Quote</button>
+					<div id="${escapeHTML(quotePanelId)}" class="archive-quote-composer" hidden>
+						<label for="${escapeHTML(quotePanelId)}-text">Quote for NationStates RMB</label>
+						<textarea id="${escapeHTML(quotePanelId)}-text" readonly></textarea>
+						<div class="archive-quote-actions">
+							<button class="archive-quote-copy" type="button">Copy quote</button>
+							<span class="archive-quote-copy-status" role="status" aria-live="polite"></span>
+						</div>
 					</div>
-				</div>
+				` : ""}
 			</footer>
 		</div>`;
-	article.querySelector(`#${CSS.escape(quotePanelId)}-text`).value = quoteText;
+	if (!authorDeleted && !moderatorSuppression) {
+		article.querySelector(`#${CSS.escape(quotePanelId)}-text`).value = quoteText;
+	}
 	const messageContent = article.querySelector(".archive-message-content");
 	messageContent.append(formatMessage(post.MESSAGE));
 	if (searchTerms.length) highlightSearchTerms(messageContent, searchTerms);
-	const authorDeleted = post.STATUS === "2";
 	if (post.SUPPRESSOR || authorDeleted) {
 		const notice = document.createElement("div");
 		notice.className = "archive-suppressed-row";
-		const moderatorSuppression = post.SUPPRESSOR === "!mod";
 		const suppressor = moderatorSuppression
 			? "a moderator"
 			: entityLink("nation", post.SUPPRESSOR, displayNation(post.SUPPRESSOR));
@@ -996,7 +1003,7 @@ function renderSearchResults(page = 1) {
 	activeSearchPage = Math.min(Math.max(1, page), pageCount);
 	const start = (activeSearchPage - 1) * manifest.page_size;
 	const pageResults = results.slice(start, start + manifest.page_size);
-	messagesContainer.replaceChildren(...pageResults.map((result, index) => createMessage(result.post, index, activeSearchOptions.terms)));
+	messagesContainer.replaceChildren(...pageResults.map((result, index) => createMessage(result.post, index, activeSearchOptions.terms, true)));
 	for (const pager of pagers) pager.innerHTML = renderPageControls(activeSearchPage, pageCount, {
 		previous: "Previous results page",
 		next: "Next results page",
